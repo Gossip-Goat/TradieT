@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tradie Triage</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #16181d; --muted: #61697a; --line: #e2e5ea;
+    --accent: #1f6feb; --emergency: #d1242f; --urgent: #d97706; --routine: #2f855a; --nojob: #8a8f98;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #181b21; --text: #e8eaee; --muted: #9aa2b1; --line: #2a2f38; --accent: #4c8dff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { position: sticky; top: 0; z-index: 2; background: var(--card); border-bottom: 1px solid var(--line); padding: 10px 16px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 17px; margin: 0; }
+  .pill { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .pill.on { color: #fff; background: #6b46c1; border-color: #6b46c1; }
+  nav { display: flex; gap: 4px; max-width: 900px; margin: 8px auto 0; overflow-x: auto; }
+  nav button { flex: none; background: none; border: 0; padding: 6px 10px; border-radius: 8px; color: var(--muted); font: inherit; cursor: pointer; }
+  nav button.active { background: var(--bg); color: var(--text); font-weight: 600; }
+  main { max-width: 900px; margin: 0 auto; padding: 16px; }
+  section { display: none; } section.active { display: block; }
+  .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .count { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .count b { display: block; font-size: 22px; }
+  .count span { font-size: 12px; color: var(--muted); }
+  .filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filters select { flex: 1; min-width: 130px; }
+  .job { background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--nojob); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .job.emergency { border-left-color: var(--emergency); } .job.urgent { border-left-color: var(--urgent); } .job.routine { border-left-color: var(--routine); }
+  .job h3 { margin: 4px 0 4px; font-size: 16px; }
+  .meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .tag { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; color: #fff; background: var(--nojob); }
+  .tag.emergency { background: var(--emergency); } .tag.urgent { background: var(--urgent); } .tag.routine { background: var(--routine); }
+  .why { font-size: 13px; color: var(--muted); margin: 6px 0; }
+  .safety { font-size: 13px; background: color-mix(in srgb, var(--emergency) 10%, transparent); padding: 6px 8px; border-radius: 6px; margin: 6px 0; }
+  details { font-size: 13px; margin-top: 6px; } details pre { white-space: pre-wrap; font: inherit; color: var(--muted); margin: 6px 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  button, .btn { font: inherit; font-size: 13.5px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; text-decoration: none; }
+  .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input, select, textarea { font: inherit; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  textarea { min-height: 110px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .panel h2 { font-size: 15px; margin: 0 0 6px; }
+  .hint { font-size: 12.5px; color: var(--muted); }
+  .hours-row input { min-width: 0; }
+  .hours-row { display: grid; grid-template-columns: 44px minmax(0,1fr) minmax(0,1fr); gap: 6px; align-items: center; margin-bottom: 6px; }
+  .log { font-size: 13px; border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .log pre { white-space: pre-wrap; font: inherit; margin: 4px 0 0; color: var(--muted); }
+  .ok { color: var(--routine); } .bad { color: var(--emergency); }
+  .result { margin-top: 12px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1 id="biz">Tradie Triage</h1>
+    <span id="mode" class="pill">…</span>
+  </div>
+  <nav>
+    <button data-tab="jobs" class="active">Jobs</button>
+    <button data-tab="add">Add job</button>
+    <button data-tab="test">Test screening</button>
+    <button data-tab="settings">Settings</button>
+    <button data-tab="activity">Activity</button>
+  </nav>
+</header>
+<main>
+  <section id="jobs" class="active">
+    <div class="counts">
+      <div class="count"><b id="c-emergency" style="color:var(--emergency)">0</b><span>Emergency</span></div>
+      <div class="count"><b id="c-urgent" style="color:var(--urgent)">0</b><span>Urgent</span></div>
+      <div class="count"><b id="c-routine" style="color:var(--routine)">0</b><span>Routine</span></div>
+    </div>
+    <div class="filters">
+      <select id="f-status">
+        <option value="open">Open jobs</option><option value="new">New</option><option value="accepted">Accepted</option>
+        <option value="scheduled">Scheduled</option><option value="in_progress">In progress</option>
+        <option value="done">Done</option><option value="declined">Declined / filtered</option><option value="">All</option>
+      </select>
+      <select id="f-priority">
+        <option value="">All priorities</option><option value="emergency">Emergency</option><option value="urgent">Urgent</option>
+        <option value="routine">Routine</option><option value="not_a_job">Not a job</option>
+      </select>
+    </div>
+    <div id="job-list"></div>
+  </section>
+
+  <section id="add">
+    <div class="panel">
+      <h2>Add a job</h2>
+      <p class="hint">Describe the job and it'll be prioritised automatically. Pick a priority to override.</p>
+      <form id="add-form">
+        <label>What's the job?</label><textarea name="details" required placeholder="e.g. Kitchen tap dripping, wants a quote for a new mixer"></textarea>
+        <div class="grid2">
+          <div><label>Customer name</label><input name="customer_name"></div>
+          <div><label>Phone</label><input name="customer_phone" type="tel"></div>
+          <div><label>Address</label><input name="address"></div>
+          <div><label>Suburb</label><input name="suburb"></div>
+          <div><label>Priority</label><select name="priority"><option value="">Work it out for me</option><option value="emergency">Emergency</option><option value="urgent">Urgent</option><option value="routine">Routine</option></select></div>
+          <div><label>Estimated value ($)</label><input name="estimated_value" type="number" min="0" step="10"></div>
+        </div>
+        <div class="actions"><button class="primary">Add job</button></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="test">
+    <div class="panel">
+      <h2>Test the after-hours screening</h2>
+      <p class="hint">Send a pretend call or email through the real screening. It's triaged, saved as a job and notifications go out exactly as they would for a real enquiry.</p>
+      <form id="sim-form">
+        <div class="grid2">
+          <div><label>Comes in by</label><select name="source"><option value="phone">Phone call</option><option value="email">Email</option></select></div>
+          <div><label>From (number or email)</label><input name="from" placeholder="+61400000000"></div>
+        </div>
+        <label>What the customer says</label>
+        <textarea name="text" required>Problem: There's water pouring out from under the kitchen sink and it's all over the floor, I can't find the tap to turn it off
+Address: 12 Smith Street, Marrickville
+Name: Jo</textarea>
+        <div class="actions">
+          <button class="primary">Run screening</button>
+          <button type="button" data-sample="Problem: The kitchen tap has been dripping for a week, could someone come and have a look sometime\nAddress: 4 Park Rd, Newtown\nName: Alex">Routine sample</button>
+          <button type="button" data-sample="Problem: I can smell burning from the switchboard and the lights are flickering\nAddress: 9 King St, Enmore\nName: Priya">Electrical sample</button>
+          <button type="button" data-sample="Subject: Grow your trade business with SEO\n\nHi, we help tradies rank #1 on Google...">Spam sample</button>
+        </div>
+      </form>
+      <div id="sim-result" class="result"></div>
+    </div>
+  </section>
+
+  <section id="settings">
+    <div class="panel">
+      <h2>Business hours</h2>
+      <p class="hint">Outside these hours, calls and emails are screened before you're told about them. Clear both times for a day you're closed.</p>
+      <div id="hours"></div>
+    </div>
+    <div class="panel">
+      <h2>After hours</h2>
+      <label>Wake me for</label>
+      <select id="s-wake"><option value="emergency">Emergencies only</option><option value="urgent">Emergencies and urgent jobs</option><option value="none">Nothing, hold everything until morning</option></select>
+      <label>Morning digest time (held jobs are sent then)</label><input id="s-digest" type="time">
+      <label>After-hours call-out fee (read to emergency callers)</label><input id="s-fee" placeholder="e.g. $180 after-hours call-out fee">
+      <label><input id="s-call" type="checkbox" style="width:auto"> Ring my phone for emergencies, not just SMS</label>
+      <label><input id="s-forward" type="checkbox" style="width:auto"> In business hours, forward calls straight to my mobile</label>
+      <label><input id="s-always" type="checkbox" style="width:auto"> Screen everything right now (on holiday or on a big job)</label>
+      <div class="actions"><button class="primary" id="save-settings">Save settings</button><button id="digest-now">Send digest now</button></div>
+    </div>
+    <div class="panel">
+      <h2>Connections</h2>
+      <div id="integrations" class="hint"></div>
+    </div>
+  </section>
+
+  <section id="activity">
+    <div class="panel"><h2>Notifications sent</h2><div id="log"></div></div>
+  </section>
+</main>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const api = async (url, opts = {}) => {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body && JSON.stringify(opts.body) });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+  return res.json();
+};
+const PLABEL = { emergency: 'Emergency', urgent: 'Urgent', routine: 'Routine', not_a_job: 'Not a job' };
+const ALABEL = { new: 'Reopen', accepted: 'Accept', scheduled: 'Schedule', in_progress: 'Start', done: 'Mark done', declined: 'Decline' };
+const SLABEL = { new: 'New', accepted: 'Accepted', scheduled: 'Scheduled', in_progress: 'In progress', done: 'Done', declined: 'Declined' };
+const when = (s) => s ? new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z').toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+
+document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+function show(tab) {
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('main section').forEach((s) => s.classList.toggle('active', s.id === tab));
+  ({ jobs: loadJobs, settings: loadSettings, activity: loadLog })[tab]?.();
+}
+
+async function loadStatus() {
+  const s = await api('/api/status');
+  $('#biz').textContent = s.business.name;
+  $('#mode').textContent = s.afterHoursNow ? 'Screening on' : 'Open, calls forwarded';
+  $('#mode').classList.toggle('on', s.afterHoursNow);
+  const i = s.integrations;
+  const row = (ok, label, fix) => `<div>${ok ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'} ${label}${ok ? '' : ` <span>(${fix})</span>`}</div>`;
+  $('#integrations').innerHTML = [
+    row(i.claude, 'AI triage with Claude', 'set ANTHROPIC_API_KEY; keyword rules are used until then'),
+    row(i.twilio, 'Twilio phone number and SMS', 'set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER'),
+    row(i.tradieMobile, 'Your mobile for alerts', 'set TRADIE_MOBILE'),
+    row(i.ntfy, 'Push notifications (ntfy app)', 'optional: set NTFY_TOPIC'),
+    row(i.emailAutoReply, 'Email auto-replies to customers', 'optional: set SENDGRID_API_KEY and EMAIL_FROM'),
+    row(Boolean(i.publicUrl), 'Public web address for webhooks', 'set PUBLIC_URL'),
+  ].join('');
+}
+
+async function loadJobs() {
+  const status = $('#f-status').value, priority = $('#f-priority').value;
+  const qs = new URLSearchParams({ ...(status && { status }), ...(priority && { priority }) });
+  const [jobs, open] = await Promise.all([api('/api/jobs?' + qs), api('/api/jobs?status=open')]);
+  for (const p of ['emergency', 'urgent', 'routine']) $('#c-' + p).textContent = open.filter((j) => j.priority === p).length;
+  $('#job-list').innerHTML = jobs.length ? jobs.map(jobCard).join('') : '<div class="empty">No jobs here. Nice.</div>';
+}
+$('#f-status').addEventListener('change', loadJobs);
+$('#f-priority').addEventListener('change', loadJobs);
+
+function jobCard(j) {
+  const addr = [j.address, j.suburb].filter(Boolean).join(', ');
+  const next = { new: ['accepted', 'declined'], accepted: ['scheduled', 'in_progress'], scheduled: ['in_progress'], in_progress: ['done'], done: [], declined: ['new'] }[j.status] || [];
+  return `<article class="job ${j.priority}" id="job-${j.id}">
+    <div class="meta"><span class="tag ${j.priority}">${PLABEL[j.priority]}</span><span>#${j.id}</span><span>${SLABEL[j.status]}</span>
+      <span>${j.source === 'phone' ? '📞' : j.source === 'email' ? '✉️' : '✍️'} ${when(j.created_at)}${j.after_hours ? ' · after hours' : ''}</span></div>
+    <h3>${esc(j.summary || j.category)}</h3>
+    <div class="meta">${j.customer_name ? `<span>👤 ${esc(j.customer_name)}</span>` : ''}${addr ? `<span>📍 ${esc(addr)}</span>` : ''}
+      ${j.scheduled_for ? `<span>🗓 ${esc(j.scheduled_for)}</span>` : ''}${j.estimated_value ? `<span>💲${esc(j.estimated_value)}</span>` : ''}
+      <span>🔔 ${j.notified_at ? esc(j.notify_channel) + ' ' + when(j.notified_at) : 'held for morning digest'}</span></div>
+    ${j.reasoning ? `<div class="why">${esc(j.reasoning)} <i>(${j.triaged_by === 'claude' ? 'AI' : j.triaged_by})</i></div>` : ''}
+    ${j.safety_advice ? `<div class="safety">Told customer: ${esc(j.safety_advice)}</div>` : ''}
+    <details><summary>What they said</summary><pre>${esc(j.details)}</pre></details>
+    <div class="actions">
+      ${j.customer_phone ? `<a class="btn primary" href="tel:${esc(j.customer_phone)}">Call ${esc(j.customer_phone)}</a>` : ''}
+      ${j.customer_email ? `<a class="btn" href="mailto:${esc(j.customer_email)}">Email</a>` : ''}
+      ${addr ? `<a class="btn" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(addr)}">Map</a>` : ''}
+      ${next.map((s) => `<button data-job="${j.id}" data-status="${s}">${ALABEL[s]}</button>`).join('')}
+      <select data-job="${j.id}" data-field="priority" style="width:auto">${Object.entries(PLABEL).map(([k, v]) => `<option value="${k}" ${k === j.priority ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    </div>
+  </article>`;
+}
+
+$('#job-list').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-status]');
+  if (!b) return;
+  const body = { status: b.dataset.status };
+  if (b.dataset.status === 'scheduled') {
+    const when = prompt('When is it booked for? (e.g. Tue 9am)');
+    if (when === null) return;
+    body.scheduled_for = when;
+  }
+  await api('/api/jobs/' + b.dataset.job, { method: 'PATCH', body });
+  loadJobs();
+});
+$('#job-list').addEventListener('change', async (e) => {
+  const s = e.target.closest('select[data-field="priority"]');
+  if (!s) return;
+  await api('/api/jobs/' + s.dataset.job, { method: 'PATCH', body: { priority: s.value } });
+  loadJobs();
+});
+
+$('#add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  await api('/api/jobs', { method: 'POST', body });
+  e.target.reset();
+  show('jobs');
+});
+
+$('#sim-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  const out = $('#sim-result');
+  out.innerHTML = '<p class="hint">Screening…</p>';
+  try {
+    const r = await api('/api/simulate', { method: 'POST', body });
+    const n = { sent: 'Tradie notified now', held: 'Held for the morning digest', filtered: 'Filtered out, tradie not bothered' }[r.notification] || r.notification;
+    out.innerHTML = `<p><b>${esc(n)}</b> · ${r.afterHours ? 'after hours' : 'business hours'} · triaged by ${r.triage.triaged_by === 'claude' ? 'AI' : 'keyword rules'}</p>` + jobCard(r.job);
+  } catch (err) { out.innerHTML = `<p class="bad">${esc(err.message)}</p>`; }
+});
+document.querySelectorAll('[data-sample]').forEach((b) => b.addEventListener('click', () => { $('#sim-form textarea').value = b.dataset.sample.replace(/\\n/g, '\n'); }));
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+async function loadSettings() {
+  loadStatus();
+  const s = await api('/api/settings');
+  $('#hours').innerHTML = DAYS.map((d, i) => {
+    const h = s.hours[i];
+    return `<div class="hours-row"><b>${d}</b><input type="time" data-day="${i}" data-k="0" value="${h ? h[0] : ''}"><input type="time" data-day="${i}" data-k="1" value="${h ? h[1] : ''}"></div>`;
+  }).join('');
+  $('#s-wake').value = s.wakeFor; $('#s-digest').value = s.digestTime; $('#s-fee').value = s.calloutFee || '';
+  $('#s-call').checked = s.callForEmergencies; $('#s-forward').checked = s.forwardCallsInHours; $('#s-always').checked = s.screeningAlwaysOn;
+}
+$('#save-settings').addEventListener('click', async () => {
+  const hours = {};
+  for (let i = 0; i < 7; i++) {
+    const a = $(`[data-day="${i}"][data-k="0"]`).value, b = $(`[data-day="${i}"][data-k="1"]`).value;
+    hours[i] = a && b ? [a, b] : null;
+  }
+  await api('/api/settings', { method: 'PUT', body: {
+    hours, wakeFor: $('#s-wake').value, digestTime: $('#s-digest').value, calloutFee: $('#s-fee').value,
+    callForEmergencies: $('#s-call').checked, forwardCallsInHours: $('#s-forward').checked, screeningAlwaysOn: $('#s-always').checked,
+  } });
+  await loadSettings();
+  loadStatus();
+});
+$('#digest-now').addEventListener('click', async () => {
+  const r = await api('/api/digest', { method: 'POST' });
+  alert(r.count ? `Digest sent with ${r.count} jobs.` : 'Nothing held back, no digest needed.');
+});
+
+async function loadLog() {
+  const rows = await api('/api/notifications');
+  $('#log').innerHTML = rows.length ? rows.map((n) => `<div class="log"><b>${esc(n.channel)}</b> · <span class="${n.status === 'sent' ? 'ok' : n.status === 'failed' ? 'bad' : ''}">${esc(n.status)}</span>${n.error ? ' · ' + esc(n.error) : ''} · ${when(n.created_at)}${n.job_id ? ' · job #' + n.job_id : ''}<pre>${esc(n.body)}</pre></div>`).join('') : '<div class="empty">Nothing sent yet.</div>';
+}
+
+loadStatus();
+loadJobs();
+setInterval(() => { if ($('#jobs').classList.contains('active')) loadJobs(); }, 30000);
+</script>
+</body>
+</html>
